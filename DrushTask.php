@@ -62,6 +62,7 @@ class DrushTask extends Task {
   private $bin = NULL;
   private $uri = NULL;
   private $root = NULL;
+  private $alias = NULL;
   private $assume = NULL;
   private $simulate = FALSE;
   private $pipe = FALSE;
@@ -91,6 +92,10 @@ class DrushTask extends Task {
    */
   public function setRoot($str) {
     $this->root = $str;
+  }
+
+  public function setAlias($str) {
+    $this->alias = $str;
   }
 
   /**
@@ -198,6 +203,7 @@ class DrushTask extends Task {
     $this->root = $this->getProject()->getProperty('drush.root');
     $this->uri = $this->getProject()->getProperty('drush.uri');
     $this->bin = $this->getProject()->getProperty('drush.bin');
+    $this->alias = $this->getProject()->getProperty('drush.alias');
   }
 
   /**
@@ -212,7 +218,13 @@ class DrushTask extends Task {
     $option->setName('nocolor');
     $this->options[] = $option;
 
-    if (!empty($this->root)) {
+    if (!empty($this->alias)) {
+      $param = new DrushParam();
+      $param->addText('@' . $this->alias);
+      $command[] = $param->getValue();
+    }
+
+    if (!empty($this->root) && empty($this->alias)) {
       $option = new DrushOption();
       $option->setName('root');
       $option->addText($this->root);
@@ -265,10 +277,13 @@ class DrushTask extends Task {
     // Execute Drush.
     $this->log("Executing '$command'...");
     $output = array();
-    exec($command, $output, $return);
+    exec($command . ' 2>&1', $output, $return);
     // Collect Drush output for display through Phing's log.
     foreach ($output as $line) {
       $this->log($line);
+      if ($this->haltonerror && strpos($line, 'Drush command terminated abnormally due to an unrecoverable error.') !== FALSE) {
+        throw new BuildException("Drush command terminated abnormally due to an unrecoverable error.");
+      }
     }
     // Set value of the 'pipe' property.
     if (!empty($this->return_property)) {
